@@ -1,64 +1,102 @@
-$(function() {
-  var INDEX = 0; 
-  var meAvatar = "static/me.png"; // Your profile image
-  var botAvatar = "static/ai.png"; // Chatbot's profile image
+const $document = document;
+const $chatbot = $document.querySelector('.chatbot');
+const $chatbotMessages = $document.querySelector('.chatbot__messages');
+const $chatbotInput = $document.querySelector('.chatbot__input');
+const $chatbotSubmit = $document.querySelector('.chatbot__submit');
+const $chatbotHeader = $document.querySelector('.chatbot__header');
+
+$chatbotHeader.addEventListener('click', () => {
+  toggleChatbot();
+}, false);
+
+$chatbotSubmit.addEventListener('click', () => {
+  sendMessage();
+}, false);
+
+$chatbotInput.addEventListener('keypress', (event) => {
+  if (event.key === 'Enter') {
+    sendMessage();
+  }
+});
+
+const toggleChatbot = () => {
+  toggle($chatbot, 'chatbot--closed');
+  if (!$chatbot.classList.contains('chatbot--closed')) {
+    $chatbotInput.focus();
+  }
+};
+
+const sendMessage = () => {
+  const text = $chatbotInput.value;
+  if (text.trim() === '') return;
+
+  addMessage('user', text);
+
+  fetch('/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ message: text })
+  })
+  .then(response => response.json())
+  .then(data => {
+    const aiResponse = data.message;
+    addMessage('ai', aiResponse);
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    addMessage('ai', 'Sorry, something went wrong.');
+  });
+
+  $chatbotInput.value = '';
+};
+
+const addMessage = (sender, content) => {
+  const senderClass = sender === 'user' ? 'is-user' : 'is-ai';
+
+  // Check if the content starts and ends with triple backticks
+  if (content.startsWith('```') && content.endsWith('```')) {
+    // Render code block with copy button
+    $chatbotMessages.innerHTML += `
+      <li class='${senderClass} animation'>
+        <div class='chatbot__message code-block'>
+          <code>${content.slice(3, -3)}</code>
+          <button class='copy-code-btn'>Copy Code</button>
+        </div>
+        <span class='chatbot__arrow ${sender === 'user' ? 'chatbot__arrow--right' : 'chatbot__arrow--left'}'></span>
+      </li>`;
+  } else {
+    // Render normal message
+    $chatbotMessages.innerHTML += `
+      <li class='${senderClass} animation'>
+        <div class='chatbot__message'>${content}</div>
+        <span class='chatbot__arrow ${sender === 'user' ? 'chatbot__arrow--right' : 'chatbot__arrow--left'}'></span>
+      </li>`;
+  }
   
-  // Function to send a message
-  function sendMessage() {
-    var msg = $("#chat-input").val().trim();
-    if(msg == ''){
-      return false;
-    }
-    generate_message(msg, 'self');
-    $("#chat-input").val('');
-    $.ajax({
-      type: "POST",
-      url: "/chat",
-      contentType: 'application/json',
-      data: JSON.stringify({message: msg}),
-      success: function(response) {
-        generate_message(response.message, 'user');
-      },
-      error: function(error) {
-        console.error('Error:', error);
-      }
+  // Attach event listener to copy code button
+  const $copyCodeBtn = document.querySelector('.copy-code-btn');
+  if ($copyCodeBtn) {
+    $copyCodeBtn.addEventListener('click', () => {
+      copyCode(content.slice(3, -3));
     });
   }
+};
 
-  // Function to generate a message
-  function generate_message(msg, type) {
-    INDEX++;
-    var str="";
-    var avatar = (type === 'self') ? meAvatar : botAvatar;
-    str += "<div id='cm-msg-"+INDEX+"' class=\"chat-msg "+type+"\">";
-    str += "          <span class=\"msg-avatar\">";
-    str += "            <img src=\"" + avatar + "\">"; // Updated to use the avatar variable
-    str += "          <\/span>";
-    str += "          <div class=\"cm-msg-text\">";
-    str += msg;
-    str += "          <\/div>";
-    str += "        <\/div>";
-    $(".chat-logs").append(str);
-    $("#cm-msg-"+INDEX).hide().fadeIn(300);
-    $(".chat-logs").stop().animate({ scrollTop: $(".chat-logs")[0].scrollHeight}, 1000);    
-  }
+const copyCode = (codeContent) => {
+  const tempTextArea = document.createElement('textarea');
+  tempTextArea.value = codeContent;
+  document.body.appendChild(tempTextArea);
+  tempTextArea.select();
+  document.execCommand('copy');
+  document.body.removeChild(tempTextArea);
+};
 
-  // Automatically open the chatbox when the page loads
-  $("#chat-circle").toggle('scale');
-  $(".chat-box").toggle('scale');
 
-  // Submit message on button click
-  $("#chat-submit").click(function(e) {
-    e.preventDefault();
-    sendMessage();
-  });
-
-  // Submit message on pressing Enter key
-  $("#chat-input").keypress(function(e) {
-    if (e.which == 13) {
-      e.preventDefault();
-      sendMessage();
-    }
-  });
-
-});
+const toggle = (element, klass) => {
+  const classes = element.className.match(/\S+/g) || [],
+  index = classes.indexOf(klass);
+  index >= 0 ? classes.splice(index, 1) : classes.push(klass);
+  element.className = classes.join(' ');
+};
